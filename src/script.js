@@ -7,6 +7,7 @@ const canvas = document.querySelector('canvas.webgl');
 let mixer = null;
 const clock = new THREE.Clock()
 let previousTime = 0
+const mdlLoader = new GLTFLoader();
 
 const keysPressed = {};
 
@@ -71,19 +72,18 @@ class CharControl {
             this.walkDirection.y = 0;
             this.walkDirection.normalize();
             this.walkDirection.applyAxisAngle(this.rotateAngle, offset);
-            console.log(this.walkDirection);
 
-            const moveX = this.walkDirection.x * deltaTime;
-            const moveZ = this.walkDirection.z * deltaTime;
-            this.model.position.x += moveX;
-            this.model.position.z += moveZ;
+            const moveX = this.walkDirection.x * deltaTime * 50;
+            const moveZ = this.walkDirection.z * deltaTime * 50;
+            this.model.position.z += moveX;
+            this.model.position.x -= moveZ;
             this.updateCamera(moveX, moveZ);
         }
     }
 
     updateCamera(moveX, moveZ) {
-        this.camera.position.x += moveX;
-        this.camera.position.z += moveZ;
+        this.camera.position.x -= moveZ;
+        this.camera.position.z += moveX;
 
         this.cameraTarget.x = this.model.position.x;
         this.cameraTarget.y = this.model.position.y + 1;
@@ -141,20 +141,20 @@ class World {
         });
         this.renderer.setSize(this.width, this.height);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        // this.renderer.shadowMap.enabled = true;
+        // this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
         const dirLight = new THREE.DirectionalLight(0xFFFFFF);
         dirLight.position.set(100, 100, 100);
-        dirLight.castShadow = true;
-        dirLight.shadow.mapSize.width = 1024;
-        dirLight.shadow.mapSize.length = 1024;
-        dirLight.shadow.camera.near = 1;
-        dirLight.shadow.camera.far = 200;
-        dirLight.shadow.camera.left = 200;
-        dirLight.shadow.camera.right = -200;
-        dirLight.shadow.camera.top = 200;
-        dirLight.shadow.camera.bottom = -200;
+        // dirLight.castShadow = true;
+        // dirLight.shadow.mapSize.width = 1024;
+        // dirLight.shadow.mapSize.length = 1024;
+        // dirLight.shadow.camera.near = 1;
+        // dirLight.shadow.camera.far = 200;
+        // dirLight.shadow.camera.left = 200;
+        // dirLight.shadow.camera.right = -200;
+        // dirLight.shadow.camera.top = 200;
+        // dirLight.shadow.camera.bottom = -200;
         this.scene.add(dirLight);
 
         const ambLight = new THREE.AmbientLight(0xffffff, Math.PI);
@@ -167,8 +167,8 @@ class World {
                 color: '#90ed77'
             })
         );
-        plane.castShadow = false;
-        plane.receiveShadow = true;
+        // plane.castShadow = false;
+        // plane.receiveShadow = true;
         plane.rotation.x = -Math.PI / 2;
         this.scene.add(plane)
 
@@ -176,20 +176,21 @@ class World {
         this.controls.enableDamping = true;
         this.controls.minDistance = 30;
         this.controls.maxDistance = 50;
+        this.controls.maxPolarAngle = Math.PI / 2 - 0.1;
         OrbitControls.enablePan = false;
         
         this.createPlayer();
+        this.createTrees();
         this.tick();
     }
 
     createPlayer() {
-        const mdlLoader = new GLTFLoader();
         mdlLoader.load(
             'models/capybara.glb',
             (gltf) => {
-                gltf.scene.traverse((layer) => {
-                    layer.castShadow = true;
-                });
+                // gltf.scene.traverse((layer) => {
+                //     layer.castShadow = true;
+                // });
                 this.scene.add(gltf.scene);
                 
                 mixer = new THREE.AnimationMixer(gltf.scene)
@@ -199,6 +200,26 @@ class World {
                 animationsMap.set('stand', mixer.clipAction(gltf.animations[1]))
 
                 this.charControls = new CharControl(gltf.scene, mixer, animationsMap, this.controls, this.camera, 'stand')
+            }
+        );
+    }
+
+    createTrees() {
+        const treePos = [];
+        
+        mdlLoader.load(
+            'models/tree.glb',
+            (gltf) => {
+                for (let tree = 0; tree < 20; tree++) {
+                    const xTree = (Math.random() - 0.5) * 200;
+                    const yTree = 0;
+                    const zTree = (Math.random() - 0.5) * 200;
+                    
+                    const clonedTree = gltf.scene.clone();
+                    clonedTree.position.set(xTree, yTree, zTree)
+                    clonedTree.rotation.y = Math.random() * Math.PI;
+                    this.scene.add(clonedTree);
+                }        
             }
         );
     }
