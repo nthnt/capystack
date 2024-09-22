@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/Addons.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import * as CANNON from 'cannon-es'
 
 //Canvas
 const canvas = document.querySelector('canvas.webgl');
@@ -8,11 +9,12 @@ let mixer = null;
 const clock = new THREE.Clock()
 let previousTime = 0
 const mdlLoader = new GLTFLoader();
+const mouse = new THREE.Vector2();
 
 const keysPressed = {};
 
 class CharControl {
-    constructor(model, mixer, animationsMap, orbitControl, camera, currentAction) {
+    constructor(model, mixer, animationsMap, orbitControl, camera, currentAction, physWorld) {
         this.toggleRun = true;
         this.model = model;
         this.mixer = mixer;
@@ -20,6 +22,7 @@ class CharControl {
         this.currentAction = currentAction;
         this.orbitControl = orbitControl;
         this.camera = camera;
+        this.physWorld = physWorld;
         this.directions = ['w', 'a', 's', 'd']
 
         this.walkDirection = new THREE.Vector3();
@@ -77,6 +80,9 @@ class CharControl {
             const moveZ = this.walkDirection.z * deltaTime * 50;
             this.model.position.z += moveX;
             this.model.position.x -= moveZ;
+            console.log(this.physWorld.playerBox.position.x);
+            this.physWorld.playerBox.position.z += moveX;
+            this.physWorld.playerBox.posiiton.x -= moveZ;
             this.updateCamera(moveX, moveZ);
         }
     }
@@ -118,6 +124,28 @@ class CharControl {
     }
 }
 
+class physicsWorld {
+    constructor(playerSize) {
+        this.createPhysics();
+        this.createPlayer(playerSize);
+    }
+
+    createPhysics() {
+        this.world = new CANNON.World();
+        this.world.gravity.set(0, -9.82, 0);
+    }
+
+    createPlayer(playerSize) {
+        this.playerBox = new CANNON.Body({
+            mass: 3,
+            shape: new CANNON.Box(playerSize)
+        });
+        this.playerBox.position.set(0, 0, 0);
+        console.log(this.playerBox);
+        this.world.addBody(this.playerBox);
+    }
+}
+
 class World {
     constructor() {
         this.width = window.innerWidth;
@@ -141,20 +169,9 @@ class World {
         });
         this.renderer.setSize(this.width, this.height);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        // this.renderer.shadowMap.enabled = true;
-        // this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
         const dirLight = new THREE.DirectionalLight(0xFFFFFF);
         dirLight.position.set(100, 100, 100);
-        // dirLight.castShadow = true;
-        // dirLight.shadow.mapSize.width = 1024;
-        // dirLight.shadow.mapSize.length = 1024;
-        // dirLight.shadow.camera.near = 1;
-        // dirLight.shadow.camera.far = 200;
-        // dirLight.shadow.camera.left = 200;
-        // dirLight.shadow.camera.right = -200;
-        // dirLight.shadow.camera.top = 200;
-        // dirLight.shadow.camera.bottom = -200;
         this.scene.add(dirLight);
 
         const ambLight = new THREE.AmbientLight(0xffffff, Math.PI);
@@ -164,11 +181,10 @@ class World {
         const plane = new THREE.Mesh(
             new THREE.PlaneGeometry(800,800,1,1),
             new THREE.MeshStandardMaterial({
-                color: '#90ed77'
+                color: '#085e2c'
             })
         );
-        // plane.castShadow = false;
-        // plane.receiveShadow = true;
+
         plane.rotation.x = -Math.PI / 2;
         this.scene.add(plane)
 
@@ -177,10 +193,15 @@ class World {
         this.controls.minDistance = 30;
         this.controls.maxDistance = 50;
         this.controls.maxPolarAngle = Math.PI / 2 - 0.1;
-        OrbitControls.enablePan = false;
+        this.controls.enablePan = false;
         
         this.createPlayer();
         this.createTrees();
+
+        // setInterval(() => {
+        //     this.generateTang();
+        // }, 2000)
+        
         this.tick();
     }
 
@@ -188,9 +209,9 @@ class World {
         mdlLoader.load(
             'models/capybara.glb',
             (gltf) => {
-                // gltf.scene.traverse((layer) => {
-                //     layer.castShadow = true;
-                // });
+                const box = new THREE.Box3().setFromObject( gltf.scene ); 
+                const size = box.getSize(new THREE.Vector3());
+
                 this.scene.add(gltf.scene);
                 
                 mixer = new THREE.AnimationMixer(gltf.scene)
@@ -199,7 +220,8 @@ class World {
                 animationsMap.set('walk', mixer.clipAction(gltf.animations[0]))
                 animationsMap.set('stand', mixer.clipAction(gltf.animations[1]))
 
-                this.charControls = new CharControl(gltf.scene, mixer, animationsMap, this.controls, this.camera, 'stand')
+                this.physWorld = new physicsWorld(size);
+                this.charControls = new CharControl(gltf.scene, mixer, animationsMap, this.controls, this.camera, 'stand', this.physWorld)
             }
         );
     }
@@ -220,6 +242,25 @@ class World {
                     clonedTree.rotation.y = Math.random() * Math.PI;
                     this.scene.add(clonedTree);
                 }        
+            }
+        );
+    }
+
+    generateTang() {
+        mdlLoader.load(
+            'models/tang.glb',
+            (gltf) => {
+                const xTang = (Math.random() - 0.5) * 200;
+                const yTang = 1;
+                const zTang = (Math.random() - 0.5) * 200;
+                // const xTang = 1;
+                // const zTang = 1;
+                
+                const tang = gltf.scene.clone();
+                tang.position.set(xTang, yTang, zTang)
+                tang.scale.set(3, 3, 3);
+                tang.rotation.y = Math.random() * Math.PI;
+                this.scene.add(tang);
             }
         );
     }
@@ -266,5 +307,10 @@ window.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('keyup', (e) => {
         keysPressed[e.key.toLowerCase()] = false;
     });
+
+    window.addEventListener('mousemove', (e) => {
+        mouse.x = (e.clientX - window.innerWidth/2)/window.innerWidth * 2;
+        mouse.x = (e.clientX - window.innerWidth/2)/window.innerWidth * 2;
+    })
 
 });
