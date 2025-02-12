@@ -81,8 +81,8 @@ class CharControl {
             this.model.position.z += moveX;
             this.model.position.x -= moveZ;
             console.log(this.physWorld.playerBox.position.x);
-            this.physWorld.playerBox.position.z += moveX;
-            this.physWorld.playerBox.posiiton.x -= moveZ;
+            // this.physWorld.playerBox.position.z += moveX;
+            // this.physWorld.playerBox.posiiton.x -= moveZ;
             this.updateCamera(moveX, moveZ);
         }
     }
